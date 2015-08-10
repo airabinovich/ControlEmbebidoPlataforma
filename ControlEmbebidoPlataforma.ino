@@ -13,12 +13,12 @@
 #endif
 #include <Servo.h>
 #include "stewartmath.h"
-#include "servoconfig.h"
+#include "servoStewart.h"
 #define LED_PIN 13 
 #define SAMPLE_TIME 50
 #define MAX_YPR_OUTPUT 180
 #define MIN_YPR_OUTPUT -180
-
+#define NUM_OF_DATA_TO_SEND 12
 #define DATA_RATE_DIV 5
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
@@ -65,24 +65,22 @@ boolean mpuCalibrated=false;
 float yawAnterior=0;
 
 
-platformServos servos [6];
+servoStewart Servos;
 
 int pidOn=0;
 String message;
 char messageData[12][10];  
 int loopCounter= 0;
+
+
 // ================================================================
 // ===                      INITIAL SETUP                       ===
 // ================================================================
-
-
 float x=101,
       y=101,
       z=230;
       
 float motorAng[N_SERVOS];
-
-
 int contFIR;
 float yawFIR,pitchFIR,rollFIR;
 boolean debugFlag=false;
@@ -150,7 +148,7 @@ void setup() {
         mpuIntStatus = mpu.getIntStatus();    
 
         pidSetupConfigurations();
-        servosSetupConfigurations();
+        Servos.servosSetupConfigurations();
 
 }
 
@@ -207,13 +205,10 @@ void loop() {
              yawActual=yawIn;
              rollActual=rollIn;
              pitchActual=pitchIn;
-                for(int j=0;j<6;j++){
-                  pinMode(j+2, OUTPUT); 
-                  servos[j].servo.attach(j+2);
-                }
-                xyz_yprToServoAng(x,y,z,yawSP,pitchSP,rollSP,motorAng);                    
-                writeToServos(motorAng,servos);
-            Serial.println("/Calibrado");
+             Servos.attachServos(2);
+             xyz_yprToServoAng(x,y,z,yawSP,pitchSP,rollSP,motorAng);                    
+             Servos.writeToServos(motorAng);
+             Serial.println("/Calibrado");
            }else if(mpuCalibrated){
                    if(pidOn==1){
                         yawPID.Compute();
@@ -223,7 +218,7 @@ void loop() {
                         pitchActual+=pitchOut;
                         rollActual+=rollOut;
                         xyz_yprToServoAng(x,y,z,yawActual,pitchActual,rollActual,motorAng);                    
-                        writeToServos(motorAng,servos);
+                        Servos.writeToServos(motorAng);
                    }
                    if(loopCounter%DATA_RATE_DIV==0){
                       sendData();
@@ -260,14 +255,7 @@ void pidSetupConfigurations(){
         rollSP=0;
 }
 
-void servosSetupConfigurations(){
-   servos[0].quad=SECOND;  
-   servos[1].quad=FIRST;  
-   servos[2].quad=SECOND;  
-   servos[3].quad=FIRST;  
-   servos[4].quad=SECOND;  
-   servos[5].quad=SECOND;  
-}
+
 
 void sendData(){  
     dtostrf(x,1,2,messageData[0]);
@@ -286,8 +274,8 @@ void sendData(){
     dtostrf(motorAng[4],1,2,messageData[10]);
     dtostrf(motorAng[5],1,2,messageData[11]);
     message="(";
-    for (int i=0;i<12;i++){
-      if(i==11){
+    for (int i=0;i<NUM_OF_DATA_TO_SEND;i++){
+      if(i==NUM_OF_DATA_TO_SEND-1){
          message=message+ (String) messageData[i]+")";
       }else{
          message=message+ (String) messageData[i]+",";
